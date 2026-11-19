@@ -1,30 +1,41 @@
 const bcrypt = require('bcrypt');
-const userModel = require('../models/user.model');
+const userModel = require('../models/user.models');
 
 const registerUser = async ({ name, email, password }) => {
-    // 1. Check whether the email already exists
-    const existingUser = await userModel.findUserByEmail(email);
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check first for a friendly duplicate-email response.
+    const existingUser = await userModel.findUserByEmail(normalizedEmail);
 
     if (existingUser) {
         throw new Error('EMAIL_ALREADY_EXISTS');
     }
 
-    // 2. Hash the password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // 3. Save the user in the database
-    const userId = await userModel.createUser({
-        name,
-        email,
-        passwordHash
-    });
+    try {
+        const userId = await userModel.createUser({
+            name: normalizedName,
+            email: normalizedEmail,
+            passwordHash
+        });
 
-    return {
-        id: userId,
-        name,
-        email,
-        role: 'CUSTOMER'
-    };
+        return {
+            id: userId,
+            name: normalizedName,
+            email: normalizedEmail,
+            role: 'CUSTOMER'
+        };
+    } catch (error) {
+        // The database unique constraint is the final protection against
+        // two concurrent registration requests using the same email.
+        if (error.code === 'ER_DUP_ENTRY') {
+            throw new Error('EMAIL_ALREADY_EXISTS');
+        }
+
+        throw error;
+    }
 };
 
 module.exports = {
