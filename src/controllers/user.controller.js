@@ -2,19 +2,42 @@ const userService = require('../services/user.service');
 
 const register = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, email, password } = req.body || {};
 
-        // Basic input validation
-        if (!name || !email || !password) {
+        if (
+            typeof name !== 'string' ||
+            typeof email !== 'string' ||
+            typeof password !== 'string' ||
+            !name.trim() ||
+            !email.trim() ||
+            !password
+        ) {
             return res.status(400).json({
                 success: false,
                 message: 'Name, email and password are required'
             });
         }
 
+        const normalizedEmail = email.trim();
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailPattern.test(normalizedEmail)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide a valid email address'
+            });
+        }
+
+        if (password.length < 8) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 8 characters long'
+            });
+        }
+
         const user = await userService.registerUser({
-            name,
-            email,
+            name: name.trim(),
+            email: normalizedEmail,
             password
         });
 
@@ -23,7 +46,6 @@ const register = async (req, res) => {
             message: 'User registered successfully',
             data: user
         });
-
     } catch (error) {
         if (error.message === 'EMAIL_ALREADY_EXISTS') {
             return res.status(409).json({
@@ -32,7 +54,7 @@ const register = async (req, res) => {
             });
         }
 
-        console.error('Registration error:', error);
+        console.error('Registration error:', error.message);
 
         return res.status(500).json({
             success: false,
